@@ -194,12 +194,16 @@ docker compose up -d --build
    npm run dev
    ```
 
-   Vite: **http://127.0.0.1:5173**. В **`vite.config.js`** настроен **proxy**:
+   Vite: **http://127.0.0.1:8080**. В **`vite.config.js`** настроен **proxy**:
 
    - **`/api`** → `VITE_DEV_API_PROXY` или **`http://127.0.0.1:8000`**;
    - **`/storage`** → тот же хост (чтобы превью загрузок работали при dev).
 
-Браузер открывают на порту **Vite (5173)**; запросы к API уходят на `artisan serve` через proxy.
+Браузер открывают на порту **Vite (8080)**; запросы к API уходят на `artisan serve` через proxy.
+
+**502 Bad Gateway** при логине/регистрации в dev: Vite проксирует на `VITE_DEV_API_PROXY` (по умолчанию `http://127.0.0.1:8000`), а Laravel там не слушает — запустите `php artisan serve` в `backend/` или выставьте в `frontend/.env` тот же host:port, что в выводе `artisan serve` (и перезапустите `npm run dev`).
+
+**404 на `/assets/index-….js`:** в **режиме разработки** (`npm run dev`) в странице должен подключаться **`/src/main.js`**, а не хеш в `assets`. Если в консели запросы к **`/assets/index-XXXX.js`**, у вас **закэширован старый** `index.html` от `vite build` / `vite preview` — после новой сборки имя файла меняется, старый исчезает → 404. Сделайте **жёсткое обновление** (Ctrl+Shift+R / «без кэша») или **очистите кэш** для `127.0.0.1:8080`. В `vite.config.js` для dev/preview включён `Cache-Control: no-store`, чтобы уменьшить повторение. Для ежедневной разработки используйте **`npm run dev`**, а не старые файлы из `dist/`.
 
 ---
 

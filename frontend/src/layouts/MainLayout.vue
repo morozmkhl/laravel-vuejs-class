@@ -1,5 +1,19 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
+import { computed } from 'vue'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+
+const auth = useAuthStore()
+const router = useRouter()
+
+const userLabel = computed(() => (auth.user ? auth.user.name || auth.user.email : ''))
+
+async function onLogout() {
+  await auth.logout()
+  if (router.currentRoute.value.matched.some((m) => m.meta.requiresAuth)) {
+    await router.push({ name: 'home' })
+  }
+}
 </script>
 
 <template>
@@ -8,8 +22,16 @@ import { RouterLink, RouterView } from 'vue-router'
       <div class="header-inner">
         <RouterLink to="/" class="logo">Vue + Laravel</RouterLink>
         <nav class="nav" aria-label="Основное меню">
-          <RouterLink class="nav-link" to="/login">Вход</RouterLink>
-          <RouterLink class="nav-link" to="/register">Регистрация</RouterLink>
+          <RouterLink class="nav-link" to="/catalog">Каталог</RouterLink>
+          <template v-if="!auth.isAuthenticated">
+            <RouterLink class="nav-link" to="/login">Вход</RouterLink>
+            <RouterLink class="nav-link" to="/register">Регистрация</RouterLink>
+          </template>
+          <template v-else>
+            <RouterLink class="nav-link" to="/profile">Профиль</RouterLink>
+            <span class="user-pill" :title="userLabel">{{ userLabel }}</span>
+            <button type="button" class="nav-link nav-btn" @click="onLogout">Выйти</button>
+          </template>
           <RouterLink class="nav-link nav-accent" to="/admin">Админ-панель</RouterLink>
         </nav>
       </div>
@@ -79,6 +101,25 @@ import { RouterLink, RouterView } from 'vue-router'
 
 .nav-link.router-link-active {
   color: var(--accent, #4f46e5);
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.user-pill {
+  max-width: 10rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.875rem;
+  color: var(--text, #18181b);
+  background: var(--bg, #f4f4f5);
+  border-radius: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nav-accent {
