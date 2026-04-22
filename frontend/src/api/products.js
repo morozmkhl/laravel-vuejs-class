@@ -7,6 +7,7 @@ import { fetchJson } from './client'
  * @property {string|null} [description]
  * @property {string} price
  * @property {string|null} [image_url]
+ * @property {string[]|null} [image_urls] несколько URL превью, если бэкенд отдаёт
  */
 
 /**
@@ -36,11 +37,17 @@ export function fileToImagePayload(file) {
 }
 
 /**
- * @param {{ id: number|null, name: string, description: string, price: string, imageFile: File|null }} payload
+ * @param {{ id: number|null, name: string, description: string, price: string, imageFile?: File|null, imageFiles?: File[] }} payload
  * @returns {Promise<unknown>}
  */
 export async function saveProduct(payload) {
-  const { id, name, description, price, imageFile } = payload
+  const { id, name, description, price, imageFile, imageFiles } = payload
+
+  const files = Array.isArray(imageFiles) && imageFiles.length
+    ? imageFiles
+    : imageFile
+      ? [imageFile]
+      : []
 
   /** @type {Record<string, unknown>} */
   const body = {
@@ -49,8 +56,10 @@ export async function saveProduct(payload) {
     price: Number(String(price).replace(',', '.')),
   }
 
-  if (imageFile) {
-    body.image = await fileToImagePayload(imageFile)
+  if (files.length) {
+    const imagePayloads = await Promise.all(files.map((f) => fileToImagePayload(f)))
+    body.images = imagePayloads
+    body.image = imagePayloads[0]
   }
 
   if (id != null) {
@@ -60,7 +69,7 @@ export async function saveProduct(payload) {
     })
   }
 
-  if (!body.image) {
+  if (!Array.isArray(body.images) || body.images.length === 0) {
     throw new Error('Выберите изображение')
   }
 

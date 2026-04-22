@@ -23,10 +23,16 @@ setUnauthorizedHandler(() => {
 app.use(router)
 
 const auth = useAuthStore(pinia)
-void Promise.all([auth.initialize(), router.isReady()])
-  .catch((e) => {
-    console.error('[app] failed to init auth or router (mounting anyway)', e)
-  })
-  .finally(() => {
-    app.mount('#app')
-  })
+
+const INIT_SAFETY_MS = 15_000
+
+void Promise.race([
+  auth.initialize().catch((e) => {
+    console.error('[app] init auth failed (mounting anyway)', e)
+  }),
+  new Promise((resolve) => {
+    setTimeout(resolve, INIT_SAFETY_MS)
+  }),
+]).finally(() => {
+  app.mount('#app')
+})

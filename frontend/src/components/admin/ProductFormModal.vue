@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   open: {
@@ -27,17 +27,42 @@ const emit = defineEmits(['update:open', 'submit'])
 const name = ref('')
 const description = ref('')
 const price = ref('')
-const imageFile = ref(null)
-const imagePreview = ref(null)
+/** @type {import('vue').Ref<{ id: number, file: File, url: string }[]>} */
+const newImageItems = ref([])
+const existingImageUrls = ref([])
 const formError = ref(null)
 const fileInput = ref(null)
+let nextNewImageId = 0
 
 const isEdit = computed(() => props.product != null)
 const title = computed(() => (isEdit.value ? 'Редактировать товар' : 'Новый товар'))
 
+function revokeAllNewImageUrls() {
+  for (const it of newImageItems.value) {
+    if (it.url) {
+      URL.revokeObjectURL(it.url)
+    }
+  }
+  newImageItems.value = []
+}
+
+function buildExistingImageUrls() {
+  const p = props.product
+  if (!p) {
+    return []
+  }
+  if (Array.isArray(p.image_urls) && p.image_urls.length) {
+    return [...p.image_urls]
+  }
+  if (p.image_url) {
+    return [p.image_url]
+  }
+  return []
+}
+
 function resetFromProduct() {
   formError.value = null
-  imageFile.value = null
+  revokeAllNewImageUrls()
   if (fileInput.value) {
     fileInput.value.value = ''
   }
@@ -45,12 +70,12 @@ function resetFromProduct() {
     name.value = props.product.name
     description.value = props.product.description ?? ''
     price.value = String(props.product.price)
-    imagePreview.value = props.product.image_url ?? null
+    existingImageUrls.value = buildExistingImageUrls()
   } else {
     name.value = ''
     description.value = ''
     price.value = ''
-    imagePreview.value = null
+    existingImageUrls.value = []
   }
 }
 
@@ -69,18 +94,35 @@ function close() {
 }
 
 function onFileChange(e) {
-  const file = e.target.files?.[0] ?? null
-  imageFile.value = file
-  if (imagePreview.value && String(imagePreview.value).startsWith('blob:')) {
-    URL.revokeObjectURL(imagePreview.value)
+  const fileList = e.target.files
+  if (!fileList?.length) {
+    return
   }
-  imagePreview.value = file ? URL.createObjectURL(file) : props.product?.image_url ?? null
+  for (const file of fileList) {
+    if (!file.type.startsWith('image/')) {
+      continue
+    }
+    newImageItems.value = [
+      ...newImageItems.value,
+      { id: nextNewImageId++, file, url: URL.createObjectURL(file) },
+    ]
+  }
+  e.target.value = ''
+}
+
+function removeNewImage(id) {
+  const idx = newImageItems.value.findIndex((x) => x.id === id)
+  if (idx === -1) {
+    return
+  }
+  const [removed] = newImageItems.value.splice(idx, 1)
+  URL.revokeObjectURL(removed.url)
 }
 
 function onSubmit() {
   formError.value = null
-  if (!isEdit.value && !imageFile.value) {
-    formError.value = 'Выберите изображение'
+  if (!isEdit.value && newImageItems.value.length === 0) {
+    formError.value = 'Выберите хотя бы одно изображение'
     return
   }
   emit('submit', {
@@ -88,9 +130,13 @@ function onSubmit() {
     name: name.value,
     description: description.value,
     price: price.value,
-    imageFile: imageFile.value,
+    imageFiles: newImageItems.value.map((x) => x.file),
   })
 }
+
+onBeforeUnmount(() => {
+  revokeAllNewImageUrls()
+})
 </script>
 
 <template>
@@ -126,17 +172,39 @@ function onSubmit() {
             />
           </div>
           <div class="field">
-            <label for="p-img">Изображение {{ isEdit ? '(необязательно)' : '' }}</label>
+            <label for="p-img">
+              Изображения
+              <span v-if="isEdit" class="field-label-muted">(необязательно, можно добавить ещё)</span>
+            </label>
             <input
               id="p-img"
               ref="fileInput"
               type="file"
               accept="image/*"
-              :required="!isEdit"
+              multiple
               @change="onFileChange"
             />
-            <div v-if="imagePreview" class="preview">
-              <img :src="imagePreview" alt="Предпросмотр" />
+            <p class="field-hint">Можно выбрать несколько файлов за раз.</p>
+            <div v-if="existingImageUrls.length || newImageItems.length" class="preview-grid">
+              <div
+                v-for="(url, i) in existingImageUrls"
+                :key="'ex-' + i"
+                class="preview-item preview-item--existing"
+              >
+                <img :src="url" alt="Текущее фото" />
+                <span class="preview-badge">Текущее</span>
+              </div>
+              <div v-for="it in newImageItems" :key="'new-' + it.id" class="preview-item">
+                <img :src="it.url" alt="Новое фото" />
+                <button
+                  type="button"
+                  class="preview-remove"
+                  :aria-label="'Убрать изображение ' + it.file.name"
+                  @click="removeNewImage(it.id)"
+                >
+                  ×
+                </button>
+              </div>
             </div>
           </div>
           <div class="modal-actions">
@@ -185,15 +253,76 @@ function onSubmit() {
   resize: vertical;
 }
 
-.preview {
+.field-label-muted {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 0.875em;
+}
+
+.field-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.preview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-top: 0.5rem;
 }
 
-.preview img {
-  max-width: 100%;
-  max-height: 180px;
+.preview-item {
+  position: relative;
+  width: 100px;
+  height: 100px;
   border-radius: 8px;
+  overflow: hidden;
   border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.preview-badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  font-size: 0.65rem;
+  line-height: 1.2;
+  padding: 0.2rem 0.25rem;
+  text-align: center;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+}
+
+.preview-remove {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-remove:hover {
+  background: rgb(0 0 0 / 0.75);
 }
 
 .modal-actions {

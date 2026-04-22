@@ -13,6 +13,14 @@ defineProps({
 })
 
 defineEmits(['edit', 'delete'])
+
+/** @param {{ image_url?: string|null, image_urls?: string[]|null }} p */
+function productThumb(p) {
+  if (Array.isArray(p.image_urls) && p.image_urls.length) {
+    return p.image_urls[0]
+  }
+  return p.image_url ?? null
+}
 </script>
 
 <template>
@@ -33,7 +41,7 @@ defineEmits(['edit', 'delete'])
         <tr v-for="p in products" :key="p.id">
           <td>
             <div class="thumb">
-              <img v-if="p.image_url" :src="p.image_url" alt="" />
+              <img v-if="productThumb(p)" :src="productThumb(p)" alt="" />
               <span v-else class="thumb-ph">Нет фото</span>
             </div>
           </td>
