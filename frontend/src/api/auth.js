@@ -17,28 +17,36 @@ const prefix = () => (import.meta.env.VITE_AUTH_API_PREFIX ?? '/api').replace(/\
  */
 
 /**
+ * Ответы Laravel с `fetchJson(..., { unwrapData: false })` приходят как `{ data: ... }`.
+ * Для логина/регистрации внутри лежит `{ user, token }`.
+ * @param {unknown} body
+ * @returns {Record<string, unknown> | null}
+ */
+function unwrapEnvelope(body) {
+  if (!body || typeof body !== 'object') return null
+  const o = /** @type {Record<string, unknown>} */ (body)
+  if ('data' in o && o.data && typeof o.data === 'object' && !Array.isArray(o.data)) {
+    return /** @type {Record<string, unknown>} */ (o.data)
+  }
+  return o
+}
+
+/**
  * @param {unknown} body
  * @returns {AuthUser | null}
  */
 function pickUser(body) {
-  if (!body || typeof body !== 'object') return null
-  if ('user' in body && body.user && typeof body.user === 'object') {
-    return /** @type {AuthUser} */ (body.user)
+  const root = unwrapEnvelope(body)
+  if (!root) return null
+  if ('user' in root && root.user && typeof root.user === 'object') {
+    return /** @type {AuthUser} */ (root.user)
   }
   if (
-    'email' in body &&
-    typeof (/** @type {Record<string, unknown>} */ (body).email) === 'string' &&
-    ('id' in body || 'name' in body)
+    'email' in root &&
+    typeof root.email === 'string' &&
+    ('id' in root || 'name' in root)
   ) {
-    return /** @type {AuthUser} */ (body)
-  }
-  if (
-    'data' in body &&
-    body.data &&
-    typeof body.data === 'object' &&
-    'id' in body.data
-  ) {
-    return /** @type {AuthUser} */ (body.data)
+    return /** @type {AuthUser} */ (root)
   }
   return null
 }
@@ -48,11 +56,13 @@ function pickUser(body) {
  * @returns {string | null}
  */
 function pickToken(body) {
-  if (body && typeof body === 'object' && 'token' in body && body.token) {
-    return String(body.token)
+  const root = unwrapEnvelope(body)
+  if (!root) return null
+  if ('token' in root && root.token) {
+    return String(root.token)
   }
-  if (body && typeof body === 'object' && 'access_token' in body && body.access_token) {
-    return String(body.access_token)
+  if ('access_token' in root && root.access_token) {
+    return String(root.access_token)
   }
   return null
 }

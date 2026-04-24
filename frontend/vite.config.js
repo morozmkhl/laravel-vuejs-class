@@ -43,7 +43,8 @@ export default defineConfig(({ mode }) => {
        * после новой сборки (хеши меняются). Не кэшировать document при dev.
        */
       headers: {
-        'Cache-Control': 'no-store',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
       },
       proxy: {
         '/api': createApiProxyConfig(apiTarget),
@@ -56,7 +57,8 @@ export default defineConfig(({ mode }) => {
       port: 8080,
       strictPort: true,
       headers: {
-        'Cache-Control': 'no-store',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        Pragma: 'no-cache',
       },
     },
   }
