@@ -45,7 +45,11 @@ const router = createRouter({
       ],
     },
   ],
-  scrollBehavior() {
+  scrollBehavior(to, from) {
+    // Смена только query/hash — остаёмся в SPA, без скачка вверх (каталог, фильтры, пагинация).
+    if (from.name != null && to.name === from.name && to.path === from.path) {
+      return false
+    }
     return { top: 0 }
   },
 })

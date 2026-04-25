@@ -14,7 +14,45 @@ import { fetchJson } from './client'
  * @returns {Promise<Product[]>}
  */
 export function fetchProducts() {
-  return fetchJson('/api/products')
+  return fetchJson('/api/admin/products')
+}
+
+/**
+ * Публичный каталог: пагинация и фильтры.
+ * @param {Record<string, string | number | undefined | null>} [query]
+ * @returns {Promise<{ data: Product[], meta: { current_page: number, last_page: number, per_page: number, total: number, from: number | null, to: number | null }, links: Record<string, string | null>, price_bounds: { min: number, max: number } }>}
+ */
+export async function fetchProductCatalog(query = {}) {
+  const u = new URLSearchParams()
+  for (const [k, v] of Object.entries(query)) {
+    if (v == null || v === '') {
+      continue
+    }
+    u.set(k, String(v))
+  }
+  const s = u.toString()
+  const path = s ? `/api/products?${s}` : '/api/products'
+  const json = await fetchJson(path, { public: true, unwrapData: false })
+  if (!json || typeof json !== 'object') {
+    return {
+      data: [],
+      meta: { current_page: 1, last_page: 1, per_page: 12, total: 0, from: null, to: null },
+      links: {},
+      price_bounds: { min: 0, max: 0 },
+    }
+  }
+  const data = 'data' in json && Array.isArray(json.data) ? json.data : []
+  const meta =
+    'meta' in json && json.meta && typeof json.meta === 'object'
+      ? /** @type {any} */ (json.meta)
+      : { current_page: 1, last_page: 1, per_page: 12, total: 0, from: null, to: null }
+  const links =
+    'links' in json && json.links && typeof json.links === 'object' ? /** @type {any} */ (json.links) : {}
+  const price_bounds =
+    'price_bounds' in json && json.price_bounds && typeof json.price_bounds === 'object'
+      ? /** @type {any} */ (json.price_bounds)
+      : { min: 0, max: 0 }
+  return { data, meta, links, price_bounds }
 }
 
 /**
